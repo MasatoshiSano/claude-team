@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>業務診断と全体ロードマップ</title>
+<style>
+  :root{
+    --ink:#1a1c1f;
+    --paper:#f7f5f0;
+    --line:#cfc9bd;
+    --muted:#6b6557;
+    --signal:#d2541a;      /* 欠けている配線・要対応 */
+    --have:#2f6f4f;        /* 既にあるもの */
+    --layer:#2b4a6f;       /* 層の見出し */
+    --chip:#ebe7dd;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
+    line-height:1.7;
+    padding:32px 20px 80px;
+  }
+  .wrap{max-width:880px;margin:0 auto}
+  .mono{font-family:"SFMono-Regular",Consolas,"Courier New",monospace}
+
+  header{border-bottom:3px solid var(--ink);padding-bottom:18px;margin-bottom:28px}
+  .eyebrow{font-size:11px;letter-spacing:.22em;color:var(--muted);text-transform:uppercase;margin-bottom:10px}
+  h1{font-size:27px;line-height:1.3;letter-spacing:.01em;font-weight:800}
+  .sub{margin-top:10px;color:var(--muted);font-size:13.5px}
+
+  section{margin:36px 0}
+  .secnum{
+    display:inline-block;font-size:11px;letter-spacing:.18em;color:var(--paper);
+    background:var(--ink);padding:3px 9px;border-radius:2px;margin-bottom:12px;
+  }
+  h2{font-size:19px;letter-spacing:.02em;margin-bottom:6px;font-weight:800}
+  .lead{color:var(--muted);font-size:13.5px;margin-bottom:16px}
+
+  /* 根本問題ボックス */
+  .root{
+    border:1.5px solid var(--ink);background:#fff;
+    padding:20px 22px;border-radius:3px;position:relative;
+  }
+  .root .tag{position:absolute;top:-10px;left:16px;background:var(--signal);color:#fff;font-size:10.5px;letter-spacing:.14em;padding:2px 10px;border-radius:2px}
+  .root p{font-size:15.5px;font-weight:700;line-height:1.65}
+  .root .small{font-size:12.5px;font-weight:400;color:var(--muted);margin-top:10px}
+
+  /* 3層 */
+  .layers{display:grid;grid-template-columns:1fr;gap:14px;margin-top:8px}
+  .layer{border:1px solid var(--line);background:#fff;border-radius:3px;overflow:hidden}
+  .layer .head{display:flex;align-items:center;gap:10px;padding:11px 16px;background:var(--chip);border-bottom:1px solid var(--line)}
+  .layer .head .lbl{font-size:11px;letter-spacing:.16em;color:var(--layer);font-weight:700}
+  .layer .head .name{font-size:14.5px;font-weight:800}
+  .layer .body{padding:13px 16px;font-size:13px;color:#33312c}
+  .layer .body b{color:var(--signal)}
+  .layer .symptom{display:inline-block;font-size:11.5px;background:#f0ece3;border:1px solid var(--line);border-radius:20px;padding:2px 11px;margin:4px 6px 0 0}
+
+  /* システム配線 */
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:680px){.grid2{grid-template-columns:1fr}}
+  .world{border:1px solid var(--line);border-radius:3px;background:#fff;padding:16px}
+  .world h3{font-size:13px;letter-spacing:.04em;margin-bottom:12px;padding-bottom:8px;border-bottom:1px dashed var(--line)}
+  .app{display:flex;gap:10px;align-items:flex-start;margin:9px 0}
+  .app .dot{flex:none;width:9px;height:9px;border-radius:50%;margin-top:6px;background:var(--have)}
+  .app .dot.wip{background:#c79a1e}
+  .app .txt{font-size:12.5px}
+  .app .txt b{font-size:13px}
+  .app .txt .m{color:var(--muted);font-size:11.5px}
+
+  .wires{margin-top:18px;border:1px solid var(--line);border-radius:3px;background:#fff}
+  .wires .wh{padding:10px 16px;background:var(--chip);border-bottom:1px solid var(--line);font-size:12.5px;font-weight:800;letter-spacing:.03em}
+  .wire{display:flex;gap:12px;align-items:center;padding:11px 16px;border-bottom:1px solid #eee}
+  .wire:last-child{border-bottom:0}
+  .wire .n{flex:none;width:22px;height:22px;border-radius:50%;background:var(--signal);color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:700}
+  .wire .flow{font-size:12.5px;flex:1}
+  .wire .flow .path{font-weight:700}
+  .wire .flow .path .arr{color:var(--signal);padding:0 4px}
+  .wire .flow .d{color:var(--muted);font-size:11.5px;display:block;margin-top:1px}
+
+  /* 4目標は一つの構造 */
+  .facets{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:6px}
+  @media(max-width:680px){.facets{grid-template-columns:1fr 1fr}}
+  .facet{border:1px solid var(--line);border-radius:3px;background:#fff;padding:12px;text-align:center;font-size:12px;font-weight:700}
+  .facet .ic{font-size:11px;color:var(--muted);font-weight:400;display:block;margin-top:5px}
+  .facetnote{text-align:center;color:var(--muted);font-size:12.5px;margin-top:12px}
+
+  /* ロードマップ */
+  .phase{display:flex;gap:0;margin-top:8px;border:1px solid var(--line);border-radius:3px;overflow:hidden}
+  @media(max-width:680px){.phase{flex-direction:column}}
+  .ph{flex:1;padding:15px 16px;border-right:1px solid var(--line)}
+  .ph:last-child{border-right:0}
+  @media(max-width:680px){.ph{border-right:0;border-bottom:1px solid var(--line)}.ph:last-child{border-bottom:0}}
+  .ph .pn{font-size:10.5px;letter-spacing:.16em;color:var(--muted)}
+  .ph .pt{font-size:14px;font-weight:800;margin:4px 0 8px}
+  .ph ul{list-style:none;font-size:12px}
+  .ph li{padding:3px 0 3px 14px;position:relative;color:#33312c}
+  .ph li::before{content:"";position:absolute;left:0;top:10px;width:5px;height:5px;background:var(--ink);border-radius:50%}
+  .ph.now{background:#fff7f1}
+  .ph.now .pt{color:var(--signal)}
+
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:14px;font-size:11.5px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow mono">Internal Diagnosis &middot; 30-question synthesis</div>
+    <h1>業務診断と全体ロードマップ</h1>
+    <div class="sub">個人業務(前半20問)＋チームマネジメント(後半10問)＋保有システムの統合分析。<br>ソ企／生産技術DXの現状を1枚に固定し、最初の一手を決めるための見取り図。</div>
+  </header>
+
+  <section>
+    <span class="secnum mono">01 &middot; ROOT</span>
+    <h2>すべての課題は、ひとつの根本問題の現れ</h2>
+    <p class="lead">バラバラに見えた悩みを30問でたどると、源は一点に収束する。</p>
+    <div class="root">
+      <span class="tag mono">ROOT CAUSE</span>
+      <p>イベントが起きた時(依頼が来た／会議が終わった／設備が止まった／改良した)に、<br>情報が <span style="color:var(--signal)">薄く・遅く・口頭で</span> しか残らない。だから俯瞰できず、振れず、自走できない。</p>
+      <p class="small">結果、すべてが「あなたの頭の中」と「あなたが聞きに行く頻度」に依存する。個人もチームも設備も、同じ構造。</p>
+    </div>
+  </section>
+
+  <section>
+    <span class="secnum mono">02 &middot; LAYERS</span>
+    <h2>同じ病が、3つの層で繰り返されている</h2>
+    <p class="lead">個人 → チーム → 設備。現れ方は違うが、原因は同一。</p>
+    <div class="layers">
+
+      <div class="layer">
+        <div class="head"><span class="lbl mono">LAYER 1</span><span class="name">個人業務</span></div>
+        <div class="body">
+          コーディング6割のプレイングマネージャー。Axis・QUICK・TaskFlow という<b>3つの自作プロダクト</b>に複数部署から要望が殺到し、一人で捌いている。要件を固めず着手 → 手戻り → 仕様が頭の中だけ → <b>誰にも振れない</b>。
+          <div>
+            <span class="symptom">保守が重い</span><span class="symptom">属人化</span><span class="symptom">文書が生まれない</span><span class="symptom">振れない</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="head"><span class="lbl mono">LAYER 2</span><span class="name">チームマネジメント(6〜10名)</span></div>
+        <div class="body">
+          担当はバラバラ(開発・教育・ヘルプデスク・インフラ調整・社外展開・他拠点)。把握は<b>会議とTeamsの口頭のみ</b>、1on1は2ヶ月に1回。遅れは<b>聞かないと上がってこない(プル型)</b>。TaskFlowはあるが、入力は週1定例の直前に思い出しながら。
+          <div>
+            <span class="symptom">全体像が掴めない</span><span class="symptom">遅れの発覚が遅い</span><span class="symptom">負荷バランス不明</span><span class="symptom">業務報告が活かせない</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="layer">
+        <div class="head"><span class="lbl mono">LAYER 3</span><span class="name">設備・現場</span></div>
+        <div class="body">
+          Axis・YAGI・QUICK という器はある。だがトラブル・改良・メンテのイベントが、<b>別ツールへ自動で流れない</b>。設備が止まってもTeamsで個別対応、記録が残らずクローズされる。
+          <div>
+            <span class="symptom">連携なし</span><span class="symptom">通知・エスカレなし</span><span class="symptom">図面更新の取りこぼし</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <span class="secnum mono">03 &middot; ASSETS</span>
+    <h2>部品は揃っている。足りないのは「配線」だけ</h2>
+    <p class="lead">あなたは既に6つの自作ツールを持つ。課題は新規開発ではなく、ツール間の接続。</p>
+
+    <div class="grid2">
+      <div class="world">
+        <h3 class="mono">業務・案件の世界</h3>
+        <div class="app"><span class="dot"></span><span class="txt"><b>ヘルプデスク</b><span class="m">他部署からの依頼の入口</span></span></div>
+        <div class="app"><span class="dot"></span><span class="txt"><b>TaskFlow</b><span class="m">タスク・担当・業務報告／MCP対応済／議事録取込み機能あり</span></span></div>
+        <div class="app"><span class="dot"></span><span class="txt"><b>Gijiraku</b><span class="m">会議から議事録を自動生成</span></span></div>
+      </div>
+      <div class="world">
+        <h3 class="mono">設備の世界</h3>
+        <div class="app"><span class="dot wip"></span><span class="txt"><b>Axis</b><span class="m">設備単位で図面・摘要表・文書を管理／テスト段階</span></span></div>
+        <div class="app"><span class="dot"></span><span class="txt"><b>YAGI</b><span class="m">設備トラブル・メンテ記録</span></span></div>
+        <div class="app"><span class="dot"></span><span class="txt"><b>QUICK</b><span class="m">稼働分析ダッシュボード(トラブル／段替え／品質)</span></span></div>
+      </div>
+    </div>
+
+    <div class="wires">
+      <div class="wh mono">欲しい配線 &mdash; 未接続(5本)</div>
+      <div class="wire"><span class="n mono">1</span><span class="flow"><span class="path">ヘルプデスク<span class="arr mono">&rarr;</span>TaskFlow</span><span class="d">依頼が来たら自動でタスク化＋担当割当(今はTeams個別対応でクローズ)</span></span></div>
+      <div class="wire"><span class="n mono">2</span><span class="flow"><span class="path">Gijiraku<span class="arr mono">&rarr;</span>TaskFlow</span><span class="d">議事録のアクションアイテムを自動でタスク化(今は手動アップロード)</span></span></div>
+      <div class="wire"><span class="n mono">3</span><span class="flow"><span class="path">YAGI<span class="arr mono">&rarr;</span>Axis</span><span class="d">改良(例:ハンド改良)で図面更新が必要 → Axisへ反映</span></span></div>
+      <div class="wire"><span class="n mono">4</span><span class="flow"><span class="path">QUICK<span class="arr mono">&rarr;</span>通知・エスカレ</span><span class="d">トラブルで工作技術へ通知、30分経過で別メンバーへ</span></span></div>
+      <div class="wire"><span class="n mono">5</span><span class="flow"><span class="path">ドカ停<span class="arr mono">&rarr;</span>YAGI</span><span class="d">設備が止まったら記録を残す連携</span></span></div>
+    </div>
+
+    <div class="legend">
+      <span><i style="background:var(--have)"></i>稼働中</span>
+      <span><i style="background:#c79a1e"></i>テスト段階</span>
+      <span><i style="background:var(--signal)"></i>未接続の配線</span>
+    </div>
+  </section>
+
+  <section>
+    <span class="secnum mono">04 &middot; GOALS</span>
+    <h2>「全部やりたい」は正しい — 4つは一つの構造の側面</h2>
+    <p class="lead">別々の願いではなく、同じ根を断てば連鎖して効く。</p>
+    <div class="facets">
+      <div class="facet">要望管理・優先度<span class="ic">3プロダクトの洪水を捌く</span></div>
+      <div class="facet">業務効率化<span class="ic">配布済Claude環境の活用</span></div>
+      <div class="facet">チーム俯瞰・委譲<span class="ic">頭の中→記録へ</span></div>
+      <div class="facet">アプリ間連携<span class="ic">イベント駆動の配線</span></div>
+    </div>
+    <p class="facetnote">いずれも「記録が自然に生まれ、自動で俯瞰される」状態に到れば同時に前進する。</p>
+  </section>
+
+  <section>
+    <span class="secnum mono">05 &middot; ROADMAP</span>
+    <h2>順番がある:配線が先、俯瞰は後</h2>
+    <p class="lead">構造化データが流れて初めて、product-management や TaskFlow-MCP が効く。</p>
+    <div class="phase">
+      <div class="ph now">
+        <div class="pn mono">PHASE 0 &middot; NOW</div>
+        <div class="pt">基盤と土台</div>
+        <ul>
+          <li>TaskFlow-MCP を自分の Claude に接続</li>
+          <li>要望を1本、write-spec で要件化して体感</li>
+          <li>環境・制約(閉域/プロキシ)の確認</li>
+        </ul>
+      </div>
+      <div class="ph">
+        <div class="pn mono">PHASE 1</div>
+        <div class="pt">配線(A層)</div>
+        <ul>
+          <li>Gijiraku→TaskFlow(既存機能の自動化)</li>
+          <li>ヘルプデスク→TaskFlow</li>
+          <li>QUICK→通知／ドカ停→YAGI</li>
+        </ul>
+      </div>
+      <div class="ph">
+        <div class="pn mono">PHASE 2</div>
+        <div class="pt">俯瞰・委譲(B層)</div>
+        <ul>
+          <li>TaskFlowデータをClaudeで俯瞰・異常検知</li>
+          <li>要望の優先度づけを仕組み化</li>
+          <li>判断軸の言語化 → メンバー自走</li>
+        </ul>
+      </div>
+      <div class="ph">
+        <div class="pn mono">PHASE 3</div>
+        <div class="pt">チーム展開</div>
+        <ul>
+          <li>ドキュメント生成を開発フローに内蔵</li>
+          <li>スキル／ワークフローをチーム標準化</li>
+          <li>属人化の解消 → 振れる体制へ</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    本資料は対話(30問＋システム聞き取り)から生成した現状診断であり、確定計画ではない。各フェーズの実装可否は社内のネットワーク制約・MCP接続可否の確認後に判断する。
+  </footer>
+
+</div>
+</body>
+</html>

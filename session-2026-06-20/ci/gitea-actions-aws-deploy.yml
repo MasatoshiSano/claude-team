@@ -1,0 +1,162 @@
+# =============================================================
+# AWS系プロダクト デプロイパイプライン（Gitea Actions）
+# 7ゲート: 静的→テスト→ビルド→E2E→セキュリティ→デプロイ→事後確認
+#
+# 【重要】これは雛形です。以下は実環境に合わせて差し替えてください:
+#   - ランタイム/コマンド（Node想定。Python等なら読み替え）
+#   - AWSデプロイ方式（ECS / S3+CloudFront 等）
+#   - 認証方式（OIDC推奨。Secretsならキー名を合わせる）
+#   - SecurityHub取得対象（アカウント/リージョン/リソース）
+# =============================================================
+name: aws-deploy-gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+env:
+  AWS_REGION: ap-northeast-1   # 要確認
+  NODE_VERSION: "20"           # 要確認
+
+jobs:
+  # ----- ゲート1: 静的チェック -----
+  gate1-static:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Type check
+        run: npm run typecheck
+      - name: Secret scan（キー混入検出）
+        run: |
+          # 例: gitleaks。未導入ならインストール手順を追加
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest detect --source=/repo --no-git -v
+      - name: Dependency audit
+        run: npm audit --audit-level=high || true   # 方針に応じて || true を外す
+
+  # ----- ゲート2: テスト -----
+  gate2-test:
+    needs: gate1-static
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm ci
+      - name: Unit tests
+        run: npm test -- --coverage
+
+  # ----- ゲート3: ビルド -----
+  gate3-build:
+    needs: gate2-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: build
+          path: dist/   # 要確認
+
+  # ----- ゲート4: Playwright E2E（クリティカルパスのみ） -----
+  gate4-e2e:
+    needs: gate3-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm ci
+      - name: Install Playwright
+        run: npx playwright install --with-deps
+      - name: E2E（@critical タグのみ実行）
+        run: npx playwright test --grep @critical
+      - name: Upload E2E report
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-report
+          path: playwright-report/
+
+  # ----- ゲート5: セキュリティ（AWS系の要） -----
+  gate5-security:
+    needs: gate4-e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: IaCスキャン（checkov）
+        run: |
+          pip install checkov
+          # CRITICALに相当する設定ミスで失敗させる。対象パスは要確認
+          checkov -d ./infra --compact || exit 1
+      - name: AWS認証（OIDC推奨）
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}   # 要設定
+          aws-region: ${{ env.AWS_REGION }}
+      - name: SecurityHub CRITICALチェック（デプロイ前）
+        run: |
+          # 対象リソースのCRITICAL findingsを取得。1件でもあれば停止
+          CRIT=$(aws securityhub get-findings \
+            --filters '{"SeverityLabel":[{"Value":"CRITICAL","Comparison":"EQUALS"}],"RecordState":[{"Value":"ACTIVE","Comparison":"EQUALS"}]}' \
+            --query 'length(Findings)' --output text)
+          echo "CRITICAL findings: $CRIT"
+          if [ "$CRIT" != "0" ]; then
+            echo "::error::SecurityHub CRITICAL検出。デプロイを中止します。"
+            exit 1
+          fi
+
+  # ----- ゲート6: デプロイ（mainへのpush時のみ） -----
+  gate6-deploy:
+    needs: gate5-security
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: AWS認証
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: 現行バージョン記録（ロールバック用）
+        run: echo "ROLLBACK_REF=$(aws ... )" >> $GITHUB_ENV   # 構成依存・要実装
+      - name: Deploy
+        run: |
+          # 構成に応じて実装。例:
+          #  - S3+CF:  aws s3 sync dist/ s3://BUCKET --delete && aws cloudfront create-invalidation ...
+          #  - ECS:    aws ecs update-service --force-new-deployment ...
+          echo "デプロイ手順は構成依存のため要実装"
+
+  # ----- ゲート7: 事後確認 -----
+  gate7-postcheck:
+    needs: gate6-deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ヘルスチェック
+        run: |
+          curl -fsS https://YOUR_APP/health || (echo "::error::ヘルスチェック失敗" && exit 1)   # 要設定
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: npm ci
+      - name: 本番スモーク（@smoke のみ）
+        run: npx playwright test --grep @smoke
+      - name: SecurityHub再取得（デプロイで新規CRITICALが出ていないか）
+        run: echo "ゲート5と同じチェックを本番リソースに対して再実行"
+      # 異常時の自動ロールバックは、ここに条件付きで実装する（要設計）
