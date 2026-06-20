@@ -1,0 +1,4 @@
+﻿Date,Line,Item,PlanQty,ActualQty,GoodQty,DefectQty
+2026-06-08,L-01,ModelA,2786,2782,2730,52
+2026-06-09,L-01,ModelB,2739,2106,2040,66
+2026-06-10,L-01,ModelC,2884,2381,2298,83

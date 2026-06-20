@@ -1,0 +1,32 @@
+{
+  "name": "manufacturing-line-diagnosis",
+  "version": "0.4.1",
+  "description": "製造ライン診断スキル集。任意フォーマットのデータを適応的に取り込み(列を自動マッピング・できること/あるとできることを提示)、生産数低下の原因を固定フロー(製造三角図→流動数曲線→PPH→OEE→ダウンタイム→RCA)で切り分ける。診断+ボトルネック/RCA/bad-actor/FMEA/PM最適化の6スキル。",
+  "author": {
+    "name": "Masatoshi (curated bundle)"
+  },
+  "license": "Apache-2.0 AND MIT",
+  "keywords": [
+    "adaptive-ingestion",
+    "bottleneck",
+    "data-onboarding",
+    "database-live",
+    "downtime",
+    "flow-curve",
+    "fmea",
+    "japanese",
+    "line-balancing",
+    "manufacturing",
+    "oee",
+    "oracle",
+    "production-drop-diagnosis",
+    "production-scheduling",
+    "rca",
+    "realtime",
+    "reliability",
+    "root-cause-analysis",
+    "schema-mapping",
+    "seisan-sankakuzu",
+    "theory-of-constraints"
+  ]
+}
